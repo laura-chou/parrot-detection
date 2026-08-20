@@ -7,7 +7,13 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
-from src.utils import format_detections, format_detections_text, get_output_path, resize_frame
+from src.utils import (
+    format_detections,
+    format_detections_text,
+    get_output_path,
+    reencode_to_h264,
+    resize_frame,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -148,4 +154,8 @@ class ParrotDetector:
                     pass
 
         logger.info(f"Video analysis completed ({frame_count} frames processed). Saved to: {out_path}")
+
+        # Re-encode video to browser-compatible H.264 format
+        out_path = reencode_to_h264(out_path)
+
         return out_path

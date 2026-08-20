@@ -1,9 +1,14 @@
-"""Utility functions for file paths, frame resizing, and result formatting."""
+"""Utility functions for file paths, frame resizing, result formatting, and video encoding."""
 
+import logging
 import os
+import subprocess
 from typing import Any, Dict, List
 import cv2
+import imageio_ffmpeg
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 def get_output_path(
@@ -89,3 +94,53 @@ def format_detections_text(detections: List[Dict[str, Any]]) -> str:
     for idx, det in enumerate(detections, start=1):
         lines.append(f"{idx}. {det['class_name']}: {det['confidence_percentage']}")
     return "\n".join(lines)
+
+
+def reencode_to_h264(video_path: str) -> str:
+    """Re-encodes a video file to H.264 (yuv420p) format using FFmpeg binary from imageio-ffmpeg.
+
+    This ensures full HTML5 video browser compatibility in Gradio web interfaces.
+
+    :param video_path: Path to the input video file.
+    :return: Path to the re-encoded video file, or original video_path if conversion fails.
+    """
+    if not os.path.exists(video_path):
+        logger.warning(f"Video path does not exist for re-encoding: {video_path}")
+        return video_path
+
+    try:
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        dir_name, file_name = os.path.split(video_path)
+        temp_out_path = os.path.join(dir_name, f"h264_{file_name}")
+
+        cmd = [
+            ffmpeg_exe,
+            "-y",
+            "-i",
+            video_path,
+            "-vcodec",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            temp_out_path,
+        ]
+
+        logger.info(f"Re-encoding video to H.264 using FFmpeg: {video_path}")
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+        )
+        logger.info("FFmpeg re-encoding completed successfully.")
+
+        os.replace(temp_out_path, video_path)
+        return video_path
+
+    except Exception as e:
+        logger.error(
+            f"Failed to re-encode video '{video_path}' to H.264: {e}. Falling back to original video."
+        )
+        if 'temp_out_path' in locals() and os.path.exists(temp_out_path):
+            try:
+                os.remove(temp_out_path)
+            except Exception:
+                pass
+        return video_path
