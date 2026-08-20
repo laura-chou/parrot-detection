@@ -62,7 +62,9 @@ def create_ui():
                 with gr.Row():
                     with gr.Column():
                         img_input = gr.Image(
-                            type="filepath", label="Upload Image"
+                            type="filepath",
+                            label="Upload Image",
+                            sources=["upload"],
                         )
                         img_conf = gr.Slider(
                             minimum=0.1,
@@ -99,7 +101,10 @@ def create_ui():
             with gr.TabItem("Video Analysis"):
                 with gr.Row():
                     with gr.Column():
-                        vid_input = gr.Video(label="Upload Video")
+                        vid_input = gr.Video(
+                            label="Upload Video",
+                            sources=["upload"],
+                        )
                         vid_conf = gr.Slider(
                             minimum=0.1,
                             maximum=1.0,

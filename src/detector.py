@@ -102,8 +102,18 @@ class ParrotDetector:
         base_name, _ = os.path.splitext(out_path)
         out_path = f"{base_name}.mp4"
 
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
+        # Try standard fourcc video encoders for cross-platform compatibility
+        codecs = ["mp4v", "avc1", "XVID"]
+        writer = None
+        for codec in codecs:
+            fourcc = cv2.VideoWriter_fourcc(*codec)
+            writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
+            if writer.isOpened():
+                break
+
+        if writer is None or not writer.isOpened():
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
 
         frame_count = 0
         try:
@@ -127,10 +137,15 @@ class ParrotDetector:
                         break
 
         finally:
-            cap.release()
-            writer.release()
+            if cap is not None:
+                cap.release()
+            if writer is not None:
+                writer.release()
             if show:
-                cv2.destroyAllWindows()
+                try:
+                    cv2.destroyAllWindows()
+                except Exception:
+                    pass
 
         logger.info(f"Video analysis completed ({frame_count} frames processed). Saved to: {out_path}")
         return out_path

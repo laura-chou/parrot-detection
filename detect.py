@@ -1,10 +1,9 @@
-import logging
-import cv2
-from ultralytics import YOLO
+"""CLI execution entry point for local runs of Parrot YOLOv8 detector."""
 
-# ==========================================
-# 設定 Python 內建 Logger
-# ==========================================
+import argparse
+import logging
+from src.detector import ParrotDetector
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -13,82 +12,72 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ==========================================
-# 1. 分析單張圖片的函式
-# ==========================================
-def detect_image(model_path, image_path):
-    logger.info(f"開始分析圖片: {image_path}")
-
-    # 載入模型
-    model = YOLO(model_path)
-
-    # 進行預測 (conf=0.5 代表信心度超過 50% 的物件才會顯示，可減少雜物)
-    results = model(image_path, conf=0.5)
-
-    for result in results:
-        result.show()  # 彈出視窗顯示結果
-        result.save(filename="result_image.jpg")  # 將結果存成 result_image.jpg
-
-    logger.info("圖片分析完成，已儲存為 result_image.jpg")
-
-
-# ==========================================
-# 2. 分析影片的函式
-# ==========================================
-def detect_video(model_path, video_path, scale=0.5):
-    """分析影片函式
-
-    :param model_path: 模型權重檔路徑
-    :param video_path: 影片檔案路徑
-    :param scale: 視窗顯示縮放比例 (預設 0.5 即原圖 50% 大小)
-    """
-    logger.info(f"開始分析影片: {video_path}")
-
-    # 載入模型
-    model = YOLO(model_path)
-
-    # 開啟影片 (如果要用視訊鏡頭，把 video_path 改成 0)
-    cap = cv2.VideoCapture(video_path)
-
-    while cap.isOpened():
-        success, frame = cap.read()
-        if not success:
-            logger.info("影片播放完畢。")
-            break
-
-        # 對當前畫面進行預測
-        results = model(frame, conf=0.5)
-
-        # 取得畫好標記框的畫面
-        annotated_frame = results[0].plot()
-
-        # 1. 將影片畫面依比例縮小，避免視窗過大
-        resized_frame = cv2.resize(annotated_frame, (0, 0), fx=scale, fy=scale)
-
-        # 2. 顯示縮小後的畫面
-        cv2.imshow("Video Inference (Press 'q' to exit)", resized_frame)
-
-        # 按下鍵盤的 'q' 鍵可以提早結束播放
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            logger.info("使用者中斷播放。")
-            break
-
-    # 釋放資源與關閉視窗
-    cap.release()
-    cv2.destroyAllWindows()
-    logger.info("影片分析結束")
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Parrot YOLOv8 Object Detection CLI"
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["image", "video"],
+        default="image",
+        help="Inference mode: 'image' or 'video' (default: image)",
+    )
+    parser.add_argument(
+        "--source",
+        type=str,
+        default="media/input/napping_image.jpg",
+        help="Path to input image or video file (default: media/input/napping_image.jpg)",
+    )
+    parser.add_argument(
+        "--weights",
+        type=str,
+        default="models/parrot_yolov8.pt",
+        help="Path to model weights file (default: models/parrot_yolov8.pt)",
+    )
+    parser.add_argument(
+        "--conf",
+        type=float,
+        default=0.5,
+        help="Confidence threshold for detection (default: 0.5)",
+    )
+    parser.add_argument(
+        "--scale",
+        type=float,
+        default=0.5,
+        help="Window scaling factor for video preview display (default: 0.5)",
+    )
+    parser.add_argument(
+        "--show",
+        action="store_true",
+        help="Display OpenCV window during video processing (local GUI environment)",
+    )
+    return parser.parse_args()
 
 
-# ==========================================
-# 主程式執行區
-# ==========================================
+def main():
+    args = parse_args()
+    logger.info(f"Initializing detector with weights: {args.weights}")
+    detector = ParrotDetector(model_path=args.weights)
+
+    if args.mode == "image":
+        logger.info(f"Running image detection on source: {args.source}")
+        _, output_path, detections, formatted_text = detector.detect_image(
+            image_path=args.source, conf=args.conf
+        )
+        logger.info(f"Detection Results:\n{formatted_text}")
+        logger.info(f"Saved annotated image to: {output_path}")
+
+    elif args.mode == "video":
+        logger.info(f"Running video detection on source: {args.source}")
+        output_path = detector.detect_video(
+            video_path=args.source,
+            conf=args.conf,
+            scale=args.scale,
+            show=args.show,
+        )
+        logger.info(f"Saved annotated video to: {output_path}")
+
+
 if __name__ == "__main__":
-    WEIGHT_FILE = "parrot_yolov8.pt"
-    IMAGE_FILE = "napping_image.jpg"
-    VIDEO_FILE = "eating_video.mp4"
-
-    detect_image(WEIGHT_FILE, IMAGE_FILE)
-
-    # 可在此處調整 scale 參數控制畫面大小：
-    # scale=0.5 代表 50% 大小；若想更小可以設為 scale=0.3
-    # detect_video(WEIGHT_FILE, VIDEO_FILE, scale=0.3)
+    main()
