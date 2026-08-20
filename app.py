@@ -48,11 +48,14 @@ def process_video(video_path: str, conf_threshold: float):
 
 def create_ui():
     """Builds and configures the Gradio Blocks web interface."""
-    with gr.Blocks(title="Parrot Detection YOLOv8 System") as demo:
+    default_image = "media/input/napping_image.jpg"
+    default_video = "media/input/eating_video.mp4"
+
+    with gr.Blocks(title="Parrot Behavior & Object Detection System") as demo:
         gr.Markdown(
             """
-            # 🦜 Parrot Recognition & Object Detection
-            Modular Object Detection application powered by **YOLOv8** and **Gradio**.
+            # 🦜 Parrot Behavior & Object Detection System
+            A YOLOv8-powered deep learning model capable of detecting 14 distinct parrot behaviors and actions (e.g., eating, napping, preening, stretching, scouting, excited).
             """
         )
 
@@ -62,6 +65,7 @@ def create_ui():
                 with gr.Row():
                     with gr.Column():
                         img_input = gr.Image(
+                            value=default_image if os.path.exists(default_image) else None,
                             type="filepath",
                             label="Upload Image",
                             sources=["upload"],
@@ -75,12 +79,15 @@ def create_ui():
                         )
                         img_button = gr.Button("Analyze Image", variant="primary")
 
-                        sample_img = "media/input/napping_image.jpg"
-                        if os.path.exists(sample_img):
-                            gr.Examples(
-                                examples=[[sample_img, 0.5]],
-                                inputs=[img_input, img_conf],
-                            )
+                        image_examples = [
+                            ["media/input/napping_image.jpg", 0.5],
+                            ["media/input/relaxed_image.jpg", 0.5],
+                        ]
+                        gr.Examples(
+                            examples=image_examples,
+                            inputs=[img_input, img_conf],
+                            label="Click an example below to test image detection:",
+                        )
 
                     with gr.Column():
                         img_output = gr.Image(label="Annotated Result")
@@ -102,6 +109,7 @@ def create_ui():
                 with gr.Row():
                     with gr.Column():
                         vid_input = gr.Video(
+                            value=default_video if os.path.exists(default_video) else None,
                             label="Upload Video",
                             sources=["upload"],
                         )
@@ -114,12 +122,17 @@ def create_ui():
                         )
                         vid_button = gr.Button("Analyze Video", variant="primary")
 
-                        sample_vid = "media/input/eating_video.mp4"
-                        if os.path.exists(sample_vid):
-                            gr.Examples(
-                                examples=[[sample_vid, 0.5]],
-                                inputs=[vid_input, vid_conf],
-                            )
+                        video_examples = [
+                            ["media/input/eating_video.mp4", 0.5],
+                            ["media/input/preening_video.mp4", 0.5],
+                            ["media/input/stretching_video.mp4", 0.5],
+                            ["media/input/excited_video.mp4", 0.5],
+                        ]
+                        gr.Examples(
+                            examples=video_examples,
+                            inputs=[vid_input, vid_conf],
+                            label="Click an example below to test behavior detection:",
+                        )
 
                     with gr.Column():
                         vid_output = gr.Video(
