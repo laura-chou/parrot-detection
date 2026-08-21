@@ -88,6 +88,19 @@ class ParrotDetector:
         """
         logger.info(f"Starting video analysis: {video_path} (conf={conf}, scale={scale})")
 
+        out_path = get_output_path(
+            video_path,
+            output_dir=output_dir,
+            prefix="result_",
+        )
+        base_name, _ = os.path.splitext(out_path)
+        out_path = f"{base_name}.mp4"
+
+        # Check if output video already exists to avoid redundant processing
+        if os.path.exists(out_path):
+            logger.info(f"Output video already exists at '{out_path}'. Skipping detection.")
+            return out_path
+
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             error_msg = f"Unable to open video source: {video_path}"
@@ -99,14 +112,6 @@ class ParrotDetector:
         fps = cap.get(cv2.CAP_PROP_FPS)
         if fps <= 0 or np.isnan(fps):
             fps = 30.0
-
-        out_path = get_output_path(
-            video_path,
-            output_dir=output_dir,
-            prefix="result_",
-        )
-        base_name, _ = os.path.splitext(out_path)
-        out_path = f"{base_name}.mp4"
 
         # Try standard fourcc video encoders for cross-platform compatibility
         codecs = ["mp4v", "avc1", "XVID"]

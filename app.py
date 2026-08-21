@@ -1,4 +1,4 @@
-"""Gradio web application interface for Parrot Recognition using YOLOv8."""
+"""Gradio web application interface for Pacific Parrotlet Recognition using YOLOv8."""
 
 import logging
 import os
@@ -49,13 +49,21 @@ def process_video(video_path: str, conf_threshold: float):
 def create_ui():
     """Builds and configures the Gradio Blocks web interface."""
     default_image = "media/input/napping_image.jpg"
-    default_video = "media/input/eating_video.mp4"
+    default_video = "media/input/default_video.mp4"
+    fallback_video = "media/input/eating_video.mp4"
 
-    with gr.Blocks(title="Parrot Behavior & Object Detection System") as demo:
+    if not os.path.exists(default_video) and os.path.exists(fallback_video):
+        active_video = fallback_video
+    else:
+        active_video = default_video
+
+    with gr.Blocks(title="Pacific Parrotlet Behavior & Object Detection System") as demo:
         gr.Markdown(
             """
-            # 🦜 Parrot Behavior & Object Detection System
-            A YOLOv8-powered deep learning model capable of detecting 14 distinct parrot behaviors and actions (e.g., eating, napping, preening, stretching, scouting, excited).
+            # 🦜 Pacific Parrotlet Behavior & Object Detection System
+            A YOLOv8-powered deep learning model capable of detecting 14 distinct Pacific Parrotlet behaviors and actions (e.g., eating, napping, preening, stretching, scouting, excited).
+
+            *Note: This model is fine-tuned specifically for Pacific Parrotlets and is not suitable for other bird species.*
             """
         )
 
@@ -69,6 +77,7 @@ def create_ui():
                             type="filepath",
                             label="Upload Image",
                             sources=["upload"],
+                            height=360,
                         )
                         img_conf = gr.Slider(
                             minimum=0.1,
@@ -90,7 +99,7 @@ def create_ui():
                         )
 
                     with gr.Column():
-                        img_output = gr.Image(label="Annotated Result")
+                        img_output = gr.Image(label="Annotated Result", height=360)
                         det_text_output = gr.Textbox(
                             label="Detections (Class & Percentage)",
                             lines=5,
@@ -109,9 +118,10 @@ def create_ui():
                 with gr.Row():
                     with gr.Column():
                         vid_input = gr.Video(
-                            value=default_video if os.path.exists(default_video) else None,
+                            value=active_video if os.path.exists(active_video) else None,
                             label="Upload Video",
                             sources=["upload"],
+                            height=360,
                         )
                         vid_conf = gr.Slider(
                             minimum=0.1,
@@ -123,6 +133,7 @@ def create_ui():
                         vid_button = gr.Button("Analyze Video", variant="primary")
 
                         video_examples = [
+                            ["media/input/default_video.mp4", 0.5],
                             ["media/input/eating_video.mp4", 0.5],
                             ["media/input/preening_video.mp4", 0.5],
                             ["media/input/stretching_video.mp4", 0.5],
@@ -136,7 +147,8 @@ def create_ui():
 
                     with gr.Column():
                         vid_output = gr.Video(
-                            label="Processed Output Video (Preview & Download)"
+                            label="Processed Output Video (Preview & Download)",
+                            height=360,
                         )
 
                 vid_button.click(
