@@ -19,16 +19,16 @@ detector = ParrotDetector(model_path=MODEL_PATH)
 def process_image(image_path: str, conf_threshold: float):
     """Callback function for Image Analysis tab in Gradio."""
     if not image_path:
-        return None, "Please upload an image.", []
+        return None, "Please upload an image."
 
     try:
         annotated_rgb, _, detections, formatted_text = detector.detect_image(
             image_path=image_path, conf=conf_threshold
         )
-        return annotated_rgb, formatted_text, detections
+        return annotated_rgb, formatted_text
     except Exception as e:
         logger.error(f"Error during image processing: {e}")
-        return None, f"Error: {str(e)}", []
+        return None, f"Error: {str(e)}"
 
 
 def process_video(video_path: str, conf_threshold: float):
@@ -49,7 +49,7 @@ def process_video(video_path: str, conf_threshold: float):
 def create_ui():
     """Builds and configures the Gradio Blocks web interface."""
     default_image = "media/input/napping_image.jpg"
-    default_video = "media/input/default_video.mp4"
+    default_video = "media/input/compilation_video.mp4"
     fallback_video = "media/input/eating_video.mp4"
 
     if not os.path.exists(default_video) and os.path.exists(fallback_video):
@@ -106,12 +106,11 @@ def create_ui():
                             lines=5,
                             interactive=False,
                         )
-                        det_json_output = gr.JSON(label="Detailed Detections Data")
 
                 img_button.click(
                     fn=process_image,
                     inputs=[img_input, img_conf],
-                    outputs=[img_output, det_text_output, det_json_output],
+                    outputs=[img_output, det_text_output],
                 )
 
             # Tab 2: Video Analysis
@@ -134,7 +133,7 @@ def create_ui():
                         vid_button = gr.Button("Analyze Video", variant="primary")
 
                         video_examples = [
-                            ["media/input/default_video.mp4", 0.5],
+                            ["media/input/compilation_video.mp4", 0.5],
                         ]
                         gr.Examples(
                             examples=video_examples,
