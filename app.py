@@ -89,8 +89,9 @@ def create_ui():
                         img_button = gr.Button("Analyze Image", variant="primary")
 
                         image_examples = [
-                            ["media/input/napping_image.jpg", 0.5],
-                            ["media/input/relaxed_image.jpg", 0.5],
+                            ["media/input/sleepy.jpg", 0.5],
+                            ["media/input/scouting.jpg", 0.5],
+                            ["media/input/gnawing.jpg", 0.5],
                         ]
                         gr.Examples(
                             examples=image_examples,
@@ -134,10 +135,6 @@ def create_ui():
 
                         video_examples = [
                             ["media/input/default_video.mp4", 0.5],
-                            ["media/input/eating_video.mp4", 0.5],
-                            ["media/input/preening_video.mp4", 0.5],
-                            ["media/input/stretching_video.mp4", 0.5],
-                            ["media/input/excited_video.mp4", 0.5],
                         ]
                         gr.Examples(
                             examples=video_examples,

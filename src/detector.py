@@ -60,7 +60,9 @@ class ParrotDetector:
         annotated_bgr = results[0].plot()
         annotated_rgb = cv2.cvtColor(annotated_bgr, cv2.COLOR_BGR2RGB)
 
-        out_path = get_output_path(image_path, output_dir=output_dir, prefix="result_")
+        out_path = get_output_path(
+            image_path, output_dir=output_dir, prefix=f"result_conf{conf:.2f}_"
+        )
         cv2.imwrite(out_path, annotated_bgr)
         logger.info(f"Image analysis completed. Saved output to: {out_path}")
 
@@ -91,7 +93,7 @@ class ParrotDetector:
         out_path = get_output_path(
             video_path,
             output_dir=output_dir,
-            prefix="result_",
+            prefix=f"result_conf{conf:.2f}_",
         )
         base_name, _ = os.path.splitext(out_path)
         out_path = f"{base_name}.mp4"
