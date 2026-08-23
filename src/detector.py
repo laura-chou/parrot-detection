@@ -78,15 +78,15 @@ class ParrotDetector:
         scale: float = 0.5,
         show: bool = False,
         output_dir: str = "media/output",
-    ) -> str:
-        """Runs object detection on a video stream or file.
+    ):
+        """Runs object detection on a video file as a generator streaming progress.
 
         :param video_path: Path to input video file or camera index string.
         :param conf: Confidence threshold for detection.
         :param scale: Window scaling factor for OpenCV display (if show=True).
         :param show: Whether to display OpenCV window during processing.
         :param output_dir: Directory where processed video is saved.
-        :return: Path to the saved annotated video file.
+        :yields: Tuple of (video_output_path_or_None, status_message_string)
         """
         logger.info(f"Starting video analysis: {video_path} (conf={conf}, scale={scale})")
 
@@ -101,7 +101,8 @@ class ParrotDetector:
         # Check if output video already exists to avoid redundant processing
         if os.path.exists(out_path):
             logger.info(f"Output video already exists at '{out_path}'. Skipping detection.")
-            return out_path
+            yield out_path, "Loaded cached detection video."
+            return
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -109,11 +110,14 @@ class ParrotDetector:
             logger.error(error_msg)
             raise ValueError(error_msg)
 
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS)
         if fps <= 0 or np.isnan(fps):
             fps = 30.0
+
+        yield None, f"Processing video: 0/{total_frames if total_frames > 0 else '?'} frames (0.0%)..."
 
         # Try standard fourcc video encoders for cross-platform compatibility
         codecs = ["mp4v", "avc1", "XVID"]
@@ -149,6 +153,17 @@ class ParrotDetector:
                         logger.info("User interrupted video display.")
                         break
 
+                # Yield progress periodically (every 30 frames or on last frame)
+                if frame_count % 30 == 0 or (total_frames > 0 and frame_count == total_frames):
+                    progress_pct = (
+                        (frame_count / total_frames) * 100 if total_frames > 0 else 0.0
+                    )
+                    status_msg = (
+                        f"Processing video: {frame_count}/{total_frames if total_frames > 0 else '?'} "
+                        f"frames ({progress_pct:.1f}%)..."
+                    )
+                    yield None, status_msg
+
         finally:
             if cap is not None:
                 cap.release()
@@ -162,7 +177,10 @@ class ParrotDetector:
 
         logger.info(f"Video analysis completed ({frame_count} frames processed). Saved to: {out_path}")
 
+        yield None, "Re-encoding video for web playback compatibility..."
+
         # Re-encode video to browser-compatible H.264 format
         out_path = reencode_to_h264(out_path)
 
-        return out_path
+        summary_msg = f"Analysis complete! {frame_count} frames processed. Video ready."
+        yield out_path, summary_msg

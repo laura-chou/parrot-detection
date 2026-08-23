@@ -32,18 +32,19 @@ def process_image(image_path: str, conf_threshold: float):
 
 
 def process_video(video_path: str, conf_threshold: float):
-    """Callback function for Video Analysis tab in Gradio."""
+    """Callback function for Video Analysis tab in Gradio using a generator."""
     if not video_path:
-        return None
+        yield None, "Please upload a video file."
+        return
 
     try:
-        output_video_path = detector.detect_video(
+        for video_update, text_update in detector.detect_video(
             video_path=video_path, conf=conf_threshold, show=False
-        )
-        return output_video_path
+        ):
+            yield video_update, text_update
     except Exception as e:
         logger.error(f"Error during video processing: {e}")
-        return None
+        yield None, f"Error: {str(e)}"
 
 
 def create_ui():
@@ -146,11 +147,16 @@ def create_ui():
                             label="Processed Output Video (Preview & Download)",
                             height=360,
                         )
+                        vid_status_output = gr.Textbox(
+                            label="Processing Status & Progress",
+                            lines=2,
+                            interactive=False,
+                        )
 
                 vid_button.click(
                     fn=process_video,
                     inputs=[vid_input, vid_conf],
-                    outputs=[vid_output],
+                    outputs=[vid_output, vid_status_output],
                 )
 
     return demo

@@ -70,12 +70,16 @@ def main():
 
     elif args.mode == "video":
         logger.info(f"Running video detection on source: {args.source}")
-        output_path = detector.detect_video(
+        output_path = None
+        for vid_out, status in detector.detect_video(
             video_path=args.source,
             conf=args.conf,
             scale=args.scale,
             show=args.show,
-        )
+        ):
+            if vid_out is not None:
+                output_path = vid_out
+            logger.info(status)
         logger.info(f"Saved annotated video to: {output_path}")
 
 
