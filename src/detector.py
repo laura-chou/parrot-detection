@@ -26,22 +26,36 @@ logger = logging.getLogger(__name__)
 class ParrotDetector:
     """Modular YOLOv8 Detector for Parrot Recognition."""
 
-    def __init__(self, model_path: str = "models/parrot_yolov8.pt") -> None:
+    def __init__(
+        self, 
+        model_path: str = "models/parrot_yolov8.pt",
+        gatekeeper_path: str = "models/yolov8n.pt"
+    ) -> None:
         """Initializes the ParrotDetector with model weights.
 
-        :param model_path: Path to YOLOv8 weights file (.pt).
+        :param model_path: Path to the main YOLOv8 behavior weights file (.pt).
+        :param gatekeeper_path: Path to the pre-trained YOLOv8 gatekeeper weights file (.pt).
         """
         self.model_path = model_path
-        if not os.path.exists(model_path):
+        self.gatekeeper_path = gatekeeper_path
+
+        # === 1. 初始化主模型 (Behavior Model) ===
+        if not os.path.exists(self.model_path):
             logger.warning(
-                f"Model weights file not found at '{model_path}'. Model initialization may download or fail."
+                f"Main model not found at '{self.model_path}'. Initialization may download or fail."
             )
-        logger.info(f"Loading YOLO model from: {self.model_path}")
+        logger.info(f"Loading behavior model from: {self.model_path}")
         self.model = YOLO(self.model_path)
-        logger.info("Model loaded successfully.")
-        logger.info("Initializing gatekeeper model (yolov8n.pt)...")
-        self.gatekeeper = YOLO("yolov8n.pt")
-        logger.info("Gatekeeper model initialized.")
+
+        # === 2. 初始化門禁模型 (Gatekeeper Model) ===
+        if not os.path.exists(self.gatekeeper_path):
+            logger.warning(
+                f"Gatekeeper model not found at '{self.gatekeeper_path}'. Initialization may download or fail."
+            )
+        logger.info(f"Loading gatekeeper model from: {self.gatekeeper_path}")
+        self.gatekeeper = YOLO(self.gatekeeper_path)
+
+        logger.info("Both Main and Gatekeeper models loaded successfully.")
 
     def _has_bird(self, source: Any, conf: float = 0.4) -> bool:
         """Private helper method checking if source contains a bird (COCO class ID 14).

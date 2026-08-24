@@ -1,8 +1,16 @@
 """Gradio web application interface for Pacific Parrotlet Recognition using YOLOv8."""
 
+# 1. 標準庫 (內建)
 import logging
 import os
+import sys
+from asyncio.proactor_events import _ProactorBasePipeTransport
+from functools import wraps
+
+# 2. 第三方套件
 import gradio as gr
+
+# 3. 本地專案自訂模組
 from src.detector import ParrotDetector
 
 logging.basicConfig(
@@ -15,6 +23,19 @@ logger = logging.getLogger(__name__)
 MODEL_PATH = "models/parrot_yolov8.pt"
 detector = ParrotDetector(model_path=MODEL_PATH)
 
+# 【Windows 專用】解決 Windows 關閉或重整網頁時，Python 誤報「遠端主機已強制關閉連線 (WinError 10054)」的錯誤。
+# 做法：攔截底層的連線中斷通知，並直接忽略該錯誤
+if sys.platform == "win32":
+    def silence_connection_lost(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            except (ConnectionResetError, AttributeError):
+                pass
+        return wrapper
+
+    _ProactorBasePipeTransport._call_connection_lost = silence_connection_lost(_ProactorBasePipeTransport._call_connection_lost)
 
 def process_image(image_path: str, conf_threshold: float):
     """Callback function for Image Analysis tab in Gradio."""
@@ -49,20 +70,14 @@ def process_video(video_path: str, conf_threshold: float):
 
 def create_ui():
     """Builds and configures the Gradio Blocks web interface."""
-    default_image = "media/input/napping_image.jpg"
+    default_image = "media/input/gnawing.jpg"
     default_video = "media/input/compilation_video.mp4"
-    fallback_video = "media/input/eating_video.mp4"
-
-    if not os.path.exists(default_video) and os.path.exists(fallback_video):
-        active_video = fallback_video
-    else:
-        active_video = default_video
 
     with gr.Blocks(title="Pacific Parrotlet Behavior & Object Detection System") as demo:
         gr.Markdown(
             """
             # 🦜 Pacific Parrotlet Behavior & Object Detection System
-            A YOLOv8-powered deep learning model capable of detecting 14 distinct Pacific Parrotlet behaviors and actions (e.g., eating, napping, preening, stretching, scouting, excited).
+            A YOLOv8-powered deep learning model capable of detecting 13 distinct Pacific Parrotlet behaviors and actions (e.g., eating, drinking, napping, preening, stretching, observing).
 
             *Note: This model is fine-tuned specifically for Pacific Parrotlets and is not suitable for other bird species.*
             """
@@ -90,8 +105,8 @@ def create_ui():
                         img_button = gr.Button("Analyze Image", variant="primary")
 
                         image_examples = [
-                            ["media/input/sleepy.jpg", 0.5],
-                            ["media/input/scouting.jpg", 0.5],
+                            ["media/input/sleeping.jpg", 0.5],
+                            ["media/input/observing.jpg", 0.5],
                             ["media/input/gnawing.jpg", 0.5],
                         ]
                         gr.Examples(
@@ -119,7 +134,7 @@ def create_ui():
                 with gr.Row():
                     with gr.Column():
                         vid_input = gr.Video(
-                            value=active_video if os.path.exists(active_video) else None,
+                            value=default_video if os.path.exists(default_video) else None,
                             label="Upload Video or Record",
                             sources=["webcam", "upload"],
                             height=360,
@@ -161,8 +176,6 @@ def create_ui():
 
     return demo
 
-
-demo = create_ui()
-
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860, share=False)
+    demo = create_ui()
+    demo.queue().launch()
