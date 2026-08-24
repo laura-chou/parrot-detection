@@ -90,8 +90,16 @@ class ParrotDetector:
         """
         logger.info(f"Starting video analysis: {video_path} (conf={conf}, scale={scale})")
 
+        # Convert video_path to int if it represents a camera index
+        video_source: Any = video_path
+        if isinstance(video_path, int) or (isinstance(video_path, str) and video_path.isdigit()):
+            video_source = int(video_path)
+            sample_name = f"webcam_{video_source}.mp4"
+        else:
+            sample_name = str(video_path)
+
         out_path = get_output_path(
-            video_path,
+            sample_name,
             output_dir=output_dir,
             prefix=f"result_conf{conf:.2f}_",
         )
@@ -99,12 +107,12 @@ class ParrotDetector:
         out_path = f"{base_name}.mp4"
 
         # Check if output video already exists to avoid redundant processing
-        if os.path.exists(out_path):
+        if isinstance(video_source, str) and os.path.exists(out_path):
             logger.info(f"Output video already exists at '{out_path}'. Skipping detection.")
             yield out_path, "Loaded cached detection video."
             return
 
-        cap = cv2.VideoCapture(video_path)
+        cap = cv2.VideoCapture(video_source)
         if not cap.isOpened():
             error_msg = f"Unable to open video source: {video_path}"
             logger.error(error_msg)

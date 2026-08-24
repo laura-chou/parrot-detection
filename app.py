@@ -76,8 +76,8 @@ def create_ui():
                         img_input = gr.Image(
                             value=default_image if os.path.exists(default_image) else None,
                             type="filepath",
-                            label="Upload Image",
-                            sources=["upload"],
+                            label="Upload Image or Take Photo",
+                            sources=["webcam", "upload"],
                             height=360,
                         )
                         img_conf = gr.Slider(
@@ -120,8 +120,8 @@ def create_ui():
                     with gr.Column():
                         vid_input = gr.Video(
                             value=active_video if os.path.exists(active_video) else None,
-                            label="Upload Video",
-                            sources=["upload"],
+                            label="Upload Video or Record",
+                            sources=["webcam", "upload"],
                             height=360,
                         )
                         vid_conf = gr.Slider(
