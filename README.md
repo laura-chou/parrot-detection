@@ -1,3 +1,15 @@
+---
+title: Pacific Parrotlet Behavior Detector
+emoji: 🦜
+colorFrom: green
+colorTo: yellow
+sdk: gradio
+sdk_version: 4.44.0
+app_file: app.py
+pinned: false
+license: mit
+---
+
 # Parrot Recognition & Object Detection System (YOLOv8 + Gradio)
 
 A modular, PEP 8-compliant Python application for parrot recognition and object detection using **YOLOv8** and **Gradio**.
