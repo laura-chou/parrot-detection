@@ -39,6 +39,24 @@ class ParrotDetector:
         logger.info(f"Loading YOLO model from: {self.model_path}")
         self.model = YOLO(self.model_path)
         logger.info("Model loaded successfully.")
+        logger.info("Initializing gatekeeper model (yolov8n.pt)...")
+        self.gatekeeper = YOLO("yolov8n.pt")
+        logger.info("Gatekeeper model initialized.")
+
+    def _has_bird(self, source: Any, conf: float = 0.4) -> bool:
+        """Private helper method checking if source contains a bird (COCO class ID 14).
+
+        :param source: Image path, ndarray frame, etc.
+        :param conf: Confidence threshold for gatekeeper model.
+        :return: True if bird detected, False otherwise.
+        """
+        results = self.gatekeeper(source, conf=conf, verbose=False)
+        for result in results:
+            if result.boxes is not None and len(result.boxes) > 0:
+                classes = result.boxes.cls.cpu().numpy()
+                if 14 in classes:
+                    return True
+        return False
 
     def detect_image(
         self, image_path: str, conf: float = 0.5, output_dir: str = "media/output"
@@ -56,13 +74,37 @@ class ParrotDetector:
             logger.error(error_msg)
             raise FileNotFoundError(error_msg)
 
+        out_path = get_output_path(
+            image_path, output_dir=output_dir, prefix=f"result_conf{conf:.2f}_"
+        )
+
+        if not self._has_bird(image_path):
+            logger.info("Gatekeeper: No bird detected in image. Skipping main model.")
+            original_bgr = cv2.imread(image_path)
+            if original_bgr is not None:
+                annotated_bgr = original_bgr.copy()
+                cv2.putText(
+                    annotated_bgr,
+                    "No Bird Detected",
+                    (30, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.0,
+                    (0, 0, 255),
+                    2,
+                    cv2.LINE_AA,
+                )
+                annotated_rgb = cv2.cvtColor(annotated_bgr, cv2.COLOR_BGR2RGB)
+                cv2.imwrite(out_path, annotated_bgr)
+            else:
+                annotated_rgb = np.zeros((300, 300, 3), dtype=np.uint8)
+
+            no_bird_msg = "No bird detected. Skipping analysis."
+            return annotated_rgb, out_path, [], no_bird_msg
+
         results = self.model(image_path, conf=conf)
         annotated_bgr = results[0].plot()
         annotated_rgb = cv2.cvtColor(annotated_bgr, cv2.COLOR_BGR2RGB)
 
-        out_path = get_output_path(
-            image_path, output_dir=output_dir, prefix=f"result_conf{conf:.2f}_"
-        )
         cv2.imwrite(out_path, annotated_bgr)
         logger.info(f"Image analysis completed. Saved output to: {out_path}")
 
@@ -149,8 +191,21 @@ class ParrotDetector:
                     break
 
                 frame_count += 1
-                results = self.model(frame, conf=conf, verbose=False)
-                annotated_frame = results[0].plot()
+                if self._has_bird(frame):
+                    results = self.model(frame, conf=conf, verbose=False)
+                    annotated_frame = results[0].plot()
+                else:
+                    annotated_frame = frame.copy()
+                    cv2.putText(
+                        annotated_frame,
+                        "No Bird Detected",
+                        (30, 50),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1.0,
+                        (0, 0, 255),
+                        2,
+                        cv2.LINE_AA,
+                    )
 
                 writer.write(annotated_frame)
 
