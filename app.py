@@ -20,8 +20,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-MODEL_PATH = "models/parrot_yolov8.pt"
-detector = ParrotDetector(model_path=MODEL_PATH)
+MODEL_PATH = "models/parrot_behavior.pt"
+GATEKEEPER_PATH = "models/parrot_detector.pt"
+detector = ParrotDetector(model_path=MODEL_PATH, gatekeeper_path=GATEKEEPER_PATH)
 
 # 【Windows 專用】解決 Windows 關閉或重整網頁時，Python 誤報「遠端主機已強制關閉連線 (WinError 10054)」的錯誤。
 # 做法：攔截底層的連線中斷通知，並直接忽略該錯誤

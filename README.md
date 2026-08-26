@@ -12,7 +12,24 @@ license: mit
 
 # Parrot Recognition & Object Detection System (YOLOv8 + Gradio)
 
-A modular, PEP 8-compliant Python application for parrot recognition and object detection using **YOLOv8** and **Gradio**.
+A modular, PEP 8-compliant Python application for parrot recognition and behavior detection using **YOLOv8** and **Gradio**.
+
+---
+
+## 🏗️ Architecture & Pipeline Flow
+
+The system employs a two-stage detection pipeline with a custom gatekeeper model (`parrot_detector.pt`) to verify parrot presence before triggering the fine-tuned behavior model (`parrot_behavior.pt`).
+
+```mermaid
+flowchart TD
+    A[Input Frame / Image] --> B[Stage 1: Gatekeeper Model\n`models/parrot_detector.pt`]
+    B --> C{是否偵測到「鸚鵡」?}
+    C -- 否 No --> D[Skip Main Analysis\nDraw 'No Parrot Detected']
+    C -- 是 Yes --> E[Stage 2: Behavior Model\n`models/parrot_behavior.pt`]
+    E --> F[Generate Class Annotations & Bounding Boxes]
+    D --> G[Save Output Media & Return Results]
+    F --> G
+```
 
 ---
 
@@ -21,7 +38,8 @@ A modular, PEP 8-compliant Python application for parrot recognition and object 
 ```text
 .
 ├── models/
-│   └── parrot_yolov8.pt       # Trained YOLOv8 model weights
+│   ├── parrot_detector.pt     # Stage 1: Custom Gatekeeper Model (Class ID 0 "parrot")
+│   └── parrot_behavior.pt     # Stage 2: Fine-tuned Pacific Parrotlet Behavior Model
 ├── media/
 │   ├── input/                  # Input image and video test files
 │   │   ├── napping_image.jpg
@@ -31,7 +49,7 @@ A modular, PEP 8-compliant Python application for parrot recognition and object 
 │       └── result_eating_video.mp4
 ├── src/
 │   ├── __init__.py
-│   ├── detector.py            # Core YOLOv8 inference class (ParrotDetector)
+│   ├── detector.py            # Core two-stage YOLOv8 inference class (ParrotDetector)
 │   └── utils.py               # Helper utility functions (scaling, paths, formatting)
 ├── app.py                     # Gradio web interface entry point
 ├── detect.py                  # Command-line interface (CLI) entry point
@@ -63,7 +81,8 @@ Run object detection locally via the command-line interface.
 ### Options:
 - `--mode`: `image` or `video` (default: `image`)
 - `--source`: Path to input image/video file (default: `media/input/napping_image.jpg`)
-- `--weights`: Path to model weights (default: `models/parrot_yolov8.pt`)
+- `--weights`: Path to behavior model weights (default: `models/parrot_behavior.pt`)
+- `--gatekeeper`: Path to gatekeeper model weights (default: `models/parrot_detector.pt`)
 - `--conf`: Confidence threshold (default: `0.5`)
 - `--scale`: OpenCV preview window scale factor for video (default: `0.5`)
 - `--show`: Optional flag to open local OpenCV preview window
@@ -102,5 +121,7 @@ Access the interface in your web browser at `http://localhost:7860`.
 
 ## ⚙️ Module Design (`src/`)
 
-- `src/detector.py`: Contains `ParrotDetector` class. Replaces print calls with standard Python `logging`. Supports customizable confidence thresholds (`conf=0.5`).
+- `src/detector.py`: Contains `ParrotDetector` class. Implements a two-stage detection logic:
+  1. **Gatekeeper Stage (`_has_parrot`)**: Checks for parrot presence using `models/parrot_detector.pt` (custom dataset class ID 0).
+  2. **Behavior Analysis Stage**: If a parrot is detected, runs the fine-tuned `models/parrot_behavior.pt` model to recognize parrot behaviors. If no parrot is detected, overlaying `"No Parrot Detected"` onto the output media is performed without invoking the main model.
 - `src/utils.py`: Provides helper utilities for path handling, image/frame scaling (`scale=0.5`), and detection dictionary/text formatting.

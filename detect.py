@@ -32,8 +32,14 @@ def parse_args():
     parser.add_argument(
         "--weights",
         type=str,
-        default="models/parrot_yolov8.pt",
-        help="Path to model weights file (default: models/parrot_yolov8.pt)",
+        default="models/parrot_behavior.pt",
+        help="Path to main behavior model weights file (default: models/parrot_behavior.pt)",
+    )
+    parser.add_argument(
+        "--gatekeeper",
+        type=str,
+        default="models/parrot_detector.pt",
+        help="Path to gatekeeper detector weights file (default: models/parrot_detector.pt)",
     )
     parser.add_argument(
         "--conf",
@@ -57,8 +63,8 @@ def parse_args():
 
 def main():
     args = parse_args()
-    logger.info(f"Initializing detector with weights: {args.weights}")
-    detector = ParrotDetector(model_path=args.weights)
+    logger.info(f"Initializing detector with weights: {args.weights} and gatekeeper: {args.gatekeeper}")
+    detector = ParrotDetector(model_path=args.weights, gatekeeper_path=args.gatekeeper)
 
     if args.mode == "image":
         logger.info(f"Running image detection on source: {args.source}")

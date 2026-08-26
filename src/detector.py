@@ -28,13 +28,13 @@ class ParrotDetector:
 
     def __init__(
         self, 
-        model_path: str = "models/parrot_yolov8.pt",
-        gatekeeper_path: str = "models/yolov8n.pt"
+        model_path: str = "models/parrot_behavior.pt",
+        gatekeeper_path: str = "models/parrot_detector.pt"
     ) -> None:
         """Initializes the ParrotDetector with model weights.
 
         :param model_path: Path to the main YOLOv8 behavior weights file (.pt).
-        :param gatekeeper_path: Path to the pre-trained YOLOv8 gatekeeper weights file (.pt).
+        :param gatekeeper_path: Path to the custom YOLOv8 gatekeeper weights file (.pt).
         """
         self.model_path = model_path
         self.gatekeeper_path = gatekeeper_path
@@ -57,18 +57,18 @@ class ParrotDetector:
 
         logger.info("Both Main and Gatekeeper models loaded successfully.")
 
-    def _has_bird(self, source: Any, conf: float = 0.4) -> bool:
-        """Private helper method checking if source contains a bird (COCO class ID 14).
+    def _has_parrot(self, source: Any, conf: float = 0.4) -> bool:
+        """Private helper method checking if source contains a parrot (custom class ID 0).
 
         :param source: Image path, ndarray frame, etc.
         :param conf: Confidence threshold for gatekeeper model.
-        :return: True if bird detected, False otherwise.
+        :return: True if parrot detected, False otherwise.
         """
         results = self.gatekeeper(source, conf=conf, verbose=False)
         for result in results:
             if result.boxes is not None and len(result.boxes) > 0:
                 classes = result.boxes.cls.cpu().numpy()
-                if 14 in classes:
+                if 0 in classes:
                     return True
         return False
 
@@ -92,14 +92,14 @@ class ParrotDetector:
             image_path, output_dir=output_dir, prefix=f"result_conf{conf:.2f}_"
         )
 
-        if not self._has_bird(image_path):
-            logger.info("Gatekeeper: No bird detected in image. Skipping main model.")
+        if not self._has_parrot(image_path):
+            logger.info("Gatekeeper: No parrot detected in image. Skipping main model.")
             original_bgr = cv2.imread(image_path)
             if original_bgr is not None:
                 annotated_bgr = original_bgr.copy()
                 cv2.putText(
                     annotated_bgr,
-                    "No Bird Detected",
+                    "No Parrot Detected",
                     (30, 50),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     1.0,
@@ -112,8 +112,8 @@ class ParrotDetector:
             else:
                 annotated_rgb = np.zeros((300, 300, 3), dtype=np.uint8)
 
-            no_bird_msg = "No bird detected. Skipping analysis."
-            return annotated_rgb, out_path, [], no_bird_msg
+            no_parrot_msg = "No parrot detected. Skipping analysis."
+            return annotated_rgb, out_path, [], no_parrot_msg
 
         results = self.model(image_path, conf=conf)
         annotated_bgr = results[0].plot()
@@ -205,14 +205,14 @@ class ParrotDetector:
                     break
 
                 frame_count += 1
-                if self._has_bird(frame):
+                if self._has_parrot(frame):
                     results = self.model(frame, conf=conf, verbose=False)
                     annotated_frame = results[0].plot()
                 else:
                     annotated_frame = frame.copy()
                     cv2.putText(
                         annotated_frame,
-                        "No Bird Detected",
+                        "No Parrot Detected",
                         (30, 50),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         1.0,
