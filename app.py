@@ -71,7 +71,7 @@ def process_video(video_path: str, conf_threshold: float):
 
 def create_ui():
     """Builds and configures the Gradio Blocks web interface."""
-    default_image = "media/input/gnawing.jpg"
+    default_image = "media/input/napping.jpg"
     default_video = "media/input/compilation_video.mp4"
 
     with gr.Blocks(title="Pacific Parrotlet Behavior & Object Detection System") as demo:
@@ -80,7 +80,7 @@ def create_ui():
             # 🦜 Pacific Parrotlet Behavior & Object Detection System
             A YOLOv8-powered deep learning model capable of detecting 13 distinct Pacific Parrotlet behaviors and actions (e.g., eating, drinking, napping, preening, stretching, observing).
 
-            *Note: This model is fine-tuned specifically for Pacific Parrotlets and is not suitable for other bird species.*
+            *Note: Behavior detection is fine-tuned specifically for Pacific Parrotlets; accuracy may decrease when applied to other bird species.*
             """
         )
 
@@ -93,7 +93,7 @@ def create_ui():
                             value=default_image if os.path.exists(default_image) else None,
                             type="filepath",
                             label="Upload Image or Take Photo",
-                            sources=["webcam", "upload"],
+                            sources=["upload", "webcam"],
                             height=360,
                         )
                         img_conf = gr.Slider(
@@ -108,7 +108,7 @@ def create_ui():
                         image_examples = [
                             ["media/input/sleeping.jpg", 0.5],
                             ["media/input/observing.jpg", 0.5],
-                            ["media/input/gnawing.jpg", 0.5],
+                            ["media/input/napping.jpg", 0.5],
                         ]
                         gr.Examples(
                             examples=image_examples,
@@ -137,7 +137,7 @@ def create_ui():
                         vid_input = gr.Video(
                             value=default_video if os.path.exists(default_video) else None,
                             label="Upload Video or Record",
-                            sources=["webcam", "upload"],
+                            sources=["upload", "webcam"],
                             height=360,
                         )
                         vid_conf = gr.Slider(
