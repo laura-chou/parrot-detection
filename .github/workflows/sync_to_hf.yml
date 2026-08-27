@@ -15,8 +15,10 @@ jobs:
           fetch-depth: 0
           lfs: true
 
-      - name: Push to Hugging Face Space
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          git push --force https://Chou1210:$HF_TOKEN@huggingface.co/spaces/Chou1210/pacific-parrotlet-behavior-detector main
+      - name: Push to Hugging Face
+        uses: huggingface/hub-sync@v0.2.1
+        with:
+          github_repo_id: ${{ github.repository }}
+          huggingface_repo_id: "Chou1210/pacific-parrotlet-behavior-detector"
+          repo_type: "space"
+          hf_token: ${{ secrets.HF_TOKEN }}
