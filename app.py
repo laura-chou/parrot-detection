@@ -190,6 +190,12 @@ if __name__ == "__main__":
     if sys.platform == "win32":
         with asyncio.Runner(loop_factory=create_windows_loop) as runner:
             loop = runner.get_loop()
-            demo.queue().launch()
+            demo.queue().launch(ssr_mode=False)
+            
+            try:
+                forever = asyncio.Event()
+                runner.run(forever.wait())
+            except KeyboardInterrupt:
+                print("\n正在關閉 Gradio 伺服器...")
     else:
-        demo.queue().launch()
+        demo.queue().launch(ssr_mode=False)
