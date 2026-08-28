@@ -10,6 +10,7 @@ from functools import wraps
 
 # 2. 第三方套件
 import gradio as gr
+import spaces
 
 # 3. 本地專案自訂模組
 from src.detector import ParrotDetector
@@ -45,6 +46,7 @@ def create_windows_loop():
     """建立標準的 Windows 事件迴圈"""
     return asyncio.new_event_loop()
 
+@spaces.GPU
 def process_image(image_path: str, conf_threshold: float):
     """Callback function for Image Analysis tab in Gradio."""
     if not image_path:
@@ -59,7 +61,7 @@ def process_image(image_path: str, conf_threshold: float):
         logger.error(f"Error during image processing: {e}")
         return None, f"Error: {str(e)}"
 
-
+@spaces.GPU
 def process_video(video_path: str, conf_threshold: float):
     """Callback function for Video Analysis tab in Gradio using a generator."""
     if not video_path:
@@ -196,6 +198,6 @@ if __name__ == "__main__":
                 forever = asyncio.Event()
                 runner.run(forever.wait())
             except KeyboardInterrupt:
-                print("\n正在關閉 Gradio 伺服器...")
+                print("\nShutting down Gradio server...")
     else:
         demo.queue().launch(ssr_mode=False)
