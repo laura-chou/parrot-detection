@@ -103,7 +103,7 @@ def create_ui():
                             type="filepath",
                             label="Upload Image or Take Photo",
                             sources=["upload", "webcam"],
-                            height=360,
+                            height=480
                         )
                         img_conf = gr.Slider(
                             minimum=0.1,
@@ -126,7 +126,7 @@ def create_ui():
                         )
 
                     with gr.Column():
-                        img_output = gr.Image(label="Annotated Result", height=360)
+                        img_output = gr.Image(label="Annotated Result", height=480)
                         det_text_output = gr.Textbox(
                             label="Detections (Class & Percentage)",
                             lines=5,
@@ -146,8 +146,7 @@ def create_ui():
                         vid_input = gr.Video(
                             value=default_video if os.path.exists(default_video) else None,
                             label="Upload Video or Record",
-                            sources=["upload", "webcam"],
-                            height=360,
+                            sources=["upload", "webcam"]
                         )
                         vid_conf = gr.Slider(
                             minimum=0.1,
@@ -159,7 +158,7 @@ def create_ui():
                         vid_button = gr.Button("Analyze Video", variant="primary")
 
                         video_examples = [
-                            ["media/input/compilation_video.mp4", 0.5],
+                            ["media/input/compilation_video.mp4", 0.5]
                         ]
                         gr.Examples(
                             examples=video_examples,
@@ -169,8 +168,7 @@ def create_ui():
 
                     with gr.Column():
                         vid_output = gr.Video(
-                            label="Processed Output Video (Preview & Download)",
-                            height=360,
+                            label="Processed Output Video (Preview & Download)"
                         )
                         vid_status_output = gr.Textbox(
                             label="Processing Status & Progress",
@@ -191,12 +189,8 @@ if __name__ == "__main__":
 
     if sys.platform == "win32":
         with asyncio.Runner(loop_factory=create_windows_loop) as runner:
-            loop = runner.get_loop()
-            demo.queue().launch(ssr_mode=False)
-            
             try:
-                forever = asyncio.Event()
-                runner.run(forever.wait())
+                demo.queue().launch(ssr_mode=False)
             except KeyboardInterrupt:
                 print("\nShutting down Gradio server...")
     else:

@@ -118,7 +118,7 @@ python detect.py --mode video --source 0 --show
 
 ```bash
 # Analyze a single image
-python detect.py --mode image --source media/input/gnawing.jpg --conf 0.5
+python detect.py --mode image --source media/input/napping.jpg --conf 0.5
 
 # Process a video file with live preview
 python detect.py --mode video --source media/input/compilation_video.mp4 --show
