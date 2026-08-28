@@ -4,6 +4,7 @@
 import logging
 import os
 import sys
+import asyncio
 from asyncio.proactor_events import _ProactorBasePipeTransport
 from functools import wraps
 
@@ -24,19 +25,25 @@ MODEL_PATH = "models/parrot_behavior.pt"
 GATEKEEPER_PATH = "models/parrot_detector.pt"
 detector = ParrotDetector(model_path=MODEL_PATH, gatekeeper_path=GATEKEEPER_PATH)
 
-# 【Windows 專用】解決 Windows 關閉或重整網頁時，Python 誤報「遠端主機已強制關閉連線 (WinError 10054)」的錯誤。
-# 做法：攔截底層的連線中斷通知，並直接忽略該錯誤
+# 【Windows 專用】解決 Windows 關閉或重整網頁時，終端機「遠端主機已強制關閉連線 (WinError 10054)」的錯誤。
+# 做法：攔截 asyncio 底層 Proactor 管道的連線中斷回呼，將該特定異常靜音（Pass），
+# 並手動釋放 socket 資源，以防程式關閉時觸發「Invalid file descriptor: -1」的垃圾回收報錯。
 if sys.platform == "win32":
     def silence_connection_lost(func):
+
         @wraps(func)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self, exc=None):
             try:
-                return func(self, *args, **kwargs)
+                return func(self, exc)
             except (ConnectionResetError, AttributeError):
-                pass
+                self._sock = None
         return wrapper
 
     _ProactorBasePipeTransport._call_connection_lost = silence_connection_lost(_ProactorBasePipeTransport._call_connection_lost)
+
+def create_windows_loop():
+    """建立標準的 Windows 事件迴圈"""
+    return asyncio.new_event_loop()
 
 def process_image(image_path: str, conf_threshold: float):
     """Callback function for Image Analysis tab in Gradio."""
@@ -179,4 +186,10 @@ def create_ui():
 
 if __name__ == "__main__":
     demo = create_ui()
-    demo.queue().launch()
+
+    if sys.platform == "win32":
+        with asyncio.Runner(loop_factory=create_windows_loop) as runner:
+            loop = runner.get_loop()
+            demo.queue().launch()
+    else:
+        demo.queue().launch()
