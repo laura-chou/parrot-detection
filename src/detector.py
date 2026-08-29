@@ -2,9 +2,16 @@
 
 import logging
 import os
-from typing import Any, Dict, List, Tuple
+from pathlib import Path
+from typing import Any, Dict, Generator, List, Tuple, Union
 import cv2
 import numpy as np
+
+try:
+    import torch
+except ImportError:
+    torch = None
+
 from ultralytics import YOLO
 
 from src.utils import (
@@ -24,31 +31,31 @@ logger = logging.getLogger(__name__)
 
 
 class ParrotDetector:
-    """Modular YOLOv8 Detector for Parrot Recognition."""
+    """Modular YOLOv8 Detector for Parrot Recognition and Behavior Analysis."""
 
     def __init__(
-        self, 
-        model_path: str = "models/parrot_behavior.pt",
-        gatekeeper_path: str = "models/parrot_detector.pt"
+        self,
+        model_path: Union[str, Path] = "models/parrot_behavior.pt",
+        gatekeeper_path: Union[str, Path] = "models/parrot_detector.pt",
     ) -> None:
         """Initializes the ParrotDetector with model weights.
 
         :param model_path: Path to the main YOLOv8 behavior weights file (.pt).
         :param gatekeeper_path: Path to the custom YOLOv8 gatekeeper weights file (.pt).
         """
-        self.model_path = model_path
-        self.gatekeeper_path = gatekeeper_path
+        self.model_path = str(model_path)
+        self.gatekeeper_path = str(gatekeeper_path)
 
-        # === 1. 初始化主模型 (Behavior Model) ===
-        if not os.path.exists(self.model_path):
+        # Initialize Main Model (Behavior Model)
+        if not Path(self.model_path).exists():
             logger.warning(
-                f"Main model not found at '{self.model_path}'. Initialization may download or fail."
+                f"Main behavior model not found at '{self.model_path}'. Initialization may download or fail."
             )
         logger.info(f"Loading behavior model from: {self.model_path}")
         self.model = YOLO(self.model_path)
 
-        # === 2. 初始化門禁模型 (Gatekeeper Model) ===
-        if not os.path.exists(self.gatekeeper_path):
+        # Initialize Gatekeeper Model
+        if not Path(self.gatekeeper_path).exists():
             logger.warning(
                 f"Gatekeeper model not found at '{self.gatekeeper_path}'. Initialization may download or fail."
             )
@@ -56,6 +63,11 @@ class ParrotDetector:
         self.gatekeeper = YOLO(self.gatekeeper_path)
 
         logger.info("Both Main and Gatekeeper models loaded successfully.")
+
+    def _clear_gpu_memory(self) -> None:
+        """Utility method to clear PyTorch CUDA GPU cache if available."""
+        if torch is not None and torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def _has_parrot(self, source: Any, conf: float = 0.4) -> bool:
         """Private helper method checking if source contains a parrot (custom class ID 0).
@@ -73,7 +85,10 @@ class ParrotDetector:
         return False
 
     def detect_image(
-        self, image_path: str, conf: float = 0.5, output_dir: str = "media/output"
+        self,
+        image_path: Union[str, Path],
+        conf: float = 0.5,
+        output_dir: Union[str, Path] = "media/output",
     ) -> Tuple[np.ndarray, str, List[Dict[str, Any]], str]:
         """Runs object detection on a single image.
 
@@ -82,19 +97,20 @@ class ParrotDetector:
         :param output_dir: Directory where the output image should be saved.
         :return: Tuple containing (annotated_image_rgb, output_path, detections_list, formatted_text).
         """
-        logger.info(f"Starting image analysis: {image_path} (conf={conf})")
-        if not os.path.exists(image_path):
-            error_msg = f"Image path does not exist: {image_path}"
+        image_path_str = str(image_path)
+        logger.info(f"Starting image analysis: {image_path_str} (conf={conf})")
+        if not Path(image_path_str).exists():
+            error_msg = f"Image path does not exist: {image_path_str}"
             logger.error(error_msg)
             raise FileNotFoundError(error_msg)
 
         out_path = get_output_path(
-            image_path, output_dir=output_dir, prefix=f"result_conf{conf:.2f}_"
+            image_path_str, output_dir=str(output_dir), prefix=f"result_conf{conf:.2f}_"
         )
 
-        if not self._has_parrot(image_path):
+        if not self._has_parrot(image_path_str):
             logger.info("Gatekeeper: No parrot detected in image. Skipping main model.")
-            original_bgr = cv2.imread(image_path)
+            original_bgr = cv2.imread(image_path_str)
             if original_bgr is not None:
                 annotated_bgr = original_bgr.copy()
                 cv2.putText(
@@ -115,7 +131,7 @@ class ParrotDetector:
             no_parrot_msg = "No parrot detected. Skipping analysis."
             return annotated_rgb, out_path, [], no_parrot_msg
 
-        results = self.model(image_path, conf=conf)
+        results = self.model(image_path_str, conf=conf)
         annotated_bgr = results[0].plot()
         annotated_rgb = cv2.cvtColor(annotated_bgr, cv2.COLOR_BGR2RGB)
 
@@ -125,19 +141,20 @@ class ParrotDetector:
         detections = format_detections(results[0])
         formatted_text = format_detections_text(detections)
 
+        self._clear_gpu_memory()
         return annotated_rgb, out_path, detections, formatted_text
 
     def detect_video(
         self,
-        video_path: str,
+        video_path: Union[str, Path, int],
         conf: float = 0.5,
         scale: float = 0.5,
         show: bool = False,
-        output_dir: str = "media/output",
-    ):
+        output_dir: Union[str, Path] = "media/output",
+    ) -> Generator[Tuple[Optional[str], str], None, None]:
         """Runs object detection on a video file as a generator streaming progress.
 
-        :param video_path: Path to input video file or camera index string.
+        :param video_path: Path to input video file or camera index string/int.
         :param conf: Confidence threshold for detection.
         :param scale: Window scaling factor for OpenCV display (if show=True).
         :param show: Whether to display OpenCV window during processing.
@@ -156,14 +173,14 @@ class ParrotDetector:
 
         out_path = get_output_path(
             sample_name,
-            output_dir=output_dir,
+            output_dir=str(output_dir),
             prefix=f"result_conf{conf:.2f}_",
         )
         base_name, _ = os.path.splitext(out_path)
         out_path = f"{base_name}.mp4"
 
         # Check if output video already exists to avoid redundant processing
-        if isinstance(video_source, str) and os.path.exists(out_path):
+        if isinstance(video_source, str) and Path(out_path).exists():
             logger.info(f"Output video already exists at '{out_path}'. Skipping detection.")
             yield out_path, "Loaded cached detection video."
             return
@@ -251,6 +268,7 @@ class ParrotDetector:
                     cv2.destroyAllWindows()
                 except Exception:
                     pass
+            self._clear_gpu_memory()
 
         logger.info(f"Video analysis completed ({frame_count} frames processed). Saved to: {out_path}")
 

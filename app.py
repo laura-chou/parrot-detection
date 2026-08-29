@@ -1,18 +1,29 @@
 """Gradio web application interface for Pacific Parrotlet Recognition using YOLOv8."""
 
-# 1. 標準庫 (內建)
-import logging
-import os
-import sys
 import asyncio
 from asyncio.proactor_events import _ProactorBasePipeTransport
+from dataclasses import dataclass
 from functools import wraps
+import logging
+import os
+from pathlib import Path
+import sys
+from typing import Any, Generator, Optional, Tuple
 
-# 2. 第三方套件
 import gradio as gr
-import spaces
 
-# 3. 本地專案自訂模組
+# Safe import for ZeroGPU compatibility on Hugging Face Spaces
+try:
+    import spaces
+
+    GPU_DECORATOR = spaces.GPU
+except ImportError:
+    # Dummy decorator fallback when spaces package is not installed (e.g., local execution)
+    def dummy_decorator(func):
+        return func
+
+    GPU_DECORATOR = dummy_decorator
+
 from src.detector import ParrotDetector
 
 logging.basicConfig(
@@ -22,38 +33,81 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-MODEL_PATH = "models/parrot_behavior.pt"
-GATEKEEPER_PATH = "models/parrot_detector.pt"
-detector = ParrotDetector(model_path=MODEL_PATH, gatekeeper_path=GATEKEEPER_PATH)
 
-# 【Windows 專用】解決 Windows 關閉或重整網頁時，終端機「遠端主機已強制關閉連線 (WinError 10054)」的錯誤。
-# 做法：攔截 asyncio 底層 Proactor 管道的連線中斷回呼，將該特定異常靜音（Pass），
-# 並手動釋放 socket 資源，以防程式關閉時觸發「Invalid file descriptor: -1」的垃圾回收報錯。
-if sys.platform == "win32":
-    def silence_connection_lost(func):
+@dataclass(frozen=True)
+class AppConfig:
+    """Centralized configuration constants for the Gradio application."""
 
-        @wraps(func)
-        def wrapper(self, exc=None):
-            try:
-                return func(self, exc)
-            except (ConnectionResetError, AttributeError):
-                self._sock = None
-        return wrapper
+    MODEL_PATH: str = "models/parrot_behavior.pt"
+    GATEKEEPER_PATH: str = "models/parrot_detector.pt"
+    DEFAULT_IMAGE: str = "media/input/napping.jpg"
+    DEFAULT_VIDEO: str = "media/input/compilation_video.mp4"
+    DEFAULT_CONFIDENCE: float = 0.5
+    CONF_MIN: float = 0.1
+    CONF_MAX: float = 1.0
+    CONF_STEP: float = 0.05
+    IMAGE_HEIGHT: int = 480
 
-    _ProactorBasePipeTransport._call_connection_lost = silence_connection_lost(_ProactorBasePipeTransport._call_connection_lost)
 
-def create_windows_loop():
-    """建立標準的 Windows 事件迴圈"""
+def custom_unraisablehook(unraisable: Any) -> None:
+    """Custom unraisable exception hook to suppress harmless teardown errors."""
+    if unraisable.exc_value is not None and "Invalid file descriptor: -1" in str(unraisable.exc_value):
+        logger.info("Ignored 'Invalid file descriptor: -1' during teardown.")
+    else:
+        sys.__unraisablehook__(unraisable)
+
+
+def setup_platform_compatibility() -> None:
+    """Sets up cross-platform exception hooks and event loop workarounds."""
+    # Global unraisable exception hook for garbage collection teardown issues
+    sys.unraisablehook = custom_unraisablehook
+
+    # [Windows-specific] Fixes terminal error "WinError 10054" upon browser tab close/refresh.
+    if sys.platform == "win32":
+
+        def silence_connection_lost(func):
+            @wraps(func)
+            def wrapper(self, exc=None):
+                try:
+                    return func(self, exc)
+                except (ConnectionResetError, AttributeError):
+                    self._sock = None
+
+            return wrapper
+
+        _ProactorBasePipeTransport._call_connection_lost = silence_connection_lost(
+            _ProactorBasePipeTransport._call_connection_lost
+        )
+
+
+def create_windows_loop() -> asyncio.AbstractEventLoop:
+    """Creates a standard Windows event loop."""
     return asyncio.new_event_loop()
 
-@spaces.GPU
-def process_image(image_path: str, conf_threshold: float):
-    """Callback function for Image Analysis tab in Gradio."""
+
+# Initialize platform compatibility handlers
+setup_platform_compatibility()
+
+# Instantiate detector instance
+detector = ParrotDetector(
+    model_path=AppConfig.MODEL_PATH,
+    gatekeeper_path=AppConfig.GATEKEEPER_PATH,
+)
+
+
+@GPU_DECORATOR
+def process_image(image_path: Optional[str], conf_threshold: float) -> Tuple[Optional[Any], str]:
+    """Callback function for Image Analysis tab in Gradio.
+
+    :param image_path: Path to input image or None.
+    :param conf_threshold: Detection confidence threshold.
+    :return: Tuple of (annotated_rgb_image_or_None, formatted_status_text).
+    """
     if not image_path:
         return None, "Please upload an image."
 
     try:
-        annotated_rgb, _, detections, formatted_text = detector.detect_image(
+        annotated_rgb, _, _, formatted_text = detector.detect_image(
             image_path=image_path, conf=conf_threshold
         )
         return annotated_rgb, formatted_text
@@ -61,9 +115,17 @@ def process_image(image_path: str, conf_threshold: float):
         logger.error(f"Error during image processing: {e}")
         return None, f"Error: {str(e)}"
 
-@spaces.GPU
-def process_video(video_path: str, conf_threshold: float):
-    """Callback function for Video Analysis tab in Gradio using a generator."""
+
+@GPU_DECORATOR
+def process_video(
+    video_path: Optional[str], conf_threshold: float
+) -> Generator[Tuple[Optional[str], str], None, None]:
+    """Callback function for Video Analysis tab in Gradio using a generator.
+
+    :param video_path: Path to input video or None.
+    :param conf_threshold: Detection confidence threshold.
+    :yields: Tuple of (video_output_path_or_None, status_message_text).
+    """
     if not video_path:
         yield None, "Please upload a video file."
         return
@@ -78,11 +140,110 @@ def process_video(video_path: str, conf_threshold: float):
         yield None, f"Error: {str(e)}"
 
 
-def create_ui():
-    """Builds and configures the Gradio Blocks web interface."""
-    default_image = "media/input/napping.jpg"
-    default_video = "media/input/compilation_video.mp4"
+def build_image_tab() -> None:
+    """Constructs the Image Analysis tab UI components."""
+    with gr.TabItem("Image Analysis"):
+        with gr.Row():
+            with gr.Column():
+                default_img_path = (
+                    AppConfig.DEFAULT_IMAGE
+                    if Path(AppConfig.DEFAULT_IMAGE).exists()
+                    else None
+                )
+                img_input = gr.Image(
+                    value=default_img_path,
+                    type="filepath",
+                    label="Upload Image or Take Photo",
+                    sources=["upload", "webcam"],
+                    height=AppConfig.IMAGE_HEIGHT,
+                )
+                img_conf = gr.Slider(
+                    minimum=AppConfig.CONF_MIN,
+                    maximum=AppConfig.CONF_MAX,
+                    value=AppConfig.DEFAULT_CONFIDENCE,
+                    step=AppConfig.CONF_STEP,
+                    label="Confidence Threshold",
+                )
+                img_button = gr.Button("Analyze Image", variant="primary")
 
+                image_examples = [
+                    ["media/input/sleeping.jpg", 0.5],
+                    ["media/input/observing.jpg", 0.5],
+                    ["media/input/napping.jpg", 0.5],
+                ]
+                gr.Examples(
+                    examples=image_examples,
+                    inputs=[img_input, img_conf],
+                    label="Click an example below to test image detection:",
+                )
+
+            with gr.Column():
+                img_output = gr.Image(
+                    label="Annotated Result", height=AppConfig.IMAGE_HEIGHT
+                )
+                det_text_output = gr.Textbox(
+                    label="Detections (Class & Percentage)",
+                    lines=5,
+                    interactive=False,
+                )
+
+        img_button.click(
+            fn=process_image,
+            inputs=[img_input, img_conf],
+            outputs=[img_output, det_text_output],
+        )
+
+
+def build_video_tab() -> None:
+    """Constructs the Video Analysis tab UI components."""
+    with gr.TabItem("Video Analysis"):
+        with gr.Row():
+            with gr.Column():
+                default_vid_path = (
+                    AppConfig.DEFAULT_VIDEO
+                    if Path(AppConfig.DEFAULT_VIDEO).exists()
+                    else None
+                )
+                vid_input = gr.Video(
+                    value=default_vid_path,
+                    label="Upload Video or Record",
+                    sources=["upload", "webcam"],
+                )
+                vid_conf = gr.Slider(
+                    minimum=AppConfig.CONF_MIN,
+                    maximum=AppConfig.CONF_MAX,
+                    value=AppConfig.DEFAULT_CONFIDENCE,
+                    step=AppConfig.CONF_STEP,
+                    label="Confidence Threshold",
+                )
+                vid_button = gr.Button("Analyze Video", variant="primary")
+
+                video_examples = [["media/input/compilation_video.mp4", 0.5]]
+                gr.Examples(
+                    examples=video_examples,
+                    inputs=[vid_input, vid_conf],
+                    label="Click an example below to test behavior detection:",
+                )
+
+            with gr.Column():
+                vid_output = gr.Video(
+                    label="Processed Output Video (Preview & Download)"
+                )
+                vid_status_output = gr.Textbox(
+                    label="Processing Status & Progress",
+                    lines=2,
+                    interactive=False,
+                )
+
+        vid_button.click(
+            fn=process_video,
+            inputs=[vid_input, vid_conf],
+            outputs=[vid_output, vid_status_output],
+        )
+
+
+def create_ui() -> gr.Blocks:
+    """Builds and configures the Gradio Blocks web interface."""
     with gr.Blocks(title="Pacific Parrotlet Behavior & Object Detection System") as demo:
         gr.Markdown(
             """
@@ -94,95 +255,11 @@ def create_ui():
         )
 
         with gr.Tabs():
-            # Tab 1: Image Analysis
-            with gr.TabItem("Image Analysis"):
-                with gr.Row():
-                    with gr.Column():
-                        img_input = gr.Image(
-                            value=default_image if os.path.exists(default_image) else None,
-                            type="filepath",
-                            label="Upload Image or Take Photo",
-                            sources=["upload", "webcam"],
-                            height=480
-                        )
-                        img_conf = gr.Slider(
-                            minimum=0.1,
-                            maximum=1.0,
-                            value=0.5,
-                            step=0.05,
-                            label="Confidence Threshold",
-                        )
-                        img_button = gr.Button("Analyze Image", variant="primary")
-
-                        image_examples = [
-                            ["media/input/sleeping.jpg", 0.5],
-                            ["media/input/observing.jpg", 0.5],
-                            ["media/input/napping.jpg", 0.5],
-                        ]
-                        gr.Examples(
-                            examples=image_examples,
-                            inputs=[img_input, img_conf],
-                            label="Click an example below to test image detection:",
-                        )
-
-                    with gr.Column():
-                        img_output = gr.Image(label="Annotated Result", height=480)
-                        det_text_output = gr.Textbox(
-                            label="Detections (Class & Percentage)",
-                            lines=5,
-                            interactive=False,
-                        )
-
-                img_button.click(
-                    fn=process_image,
-                    inputs=[img_input, img_conf],
-                    outputs=[img_output, det_text_output],
-                )
-
-            # Tab 2: Video Analysis
-            with gr.TabItem("Video Analysis"):
-                with gr.Row():
-                    with gr.Column():
-                        vid_input = gr.Video(
-                            value=default_video if os.path.exists(default_video) else None,
-                            label="Upload Video or Record",
-                            sources=["upload", "webcam"]
-                        )
-                        vid_conf = gr.Slider(
-                            minimum=0.1,
-                            maximum=1.0,
-                            value=0.5,
-                            step=0.05,
-                            label="Confidence Threshold",
-                        )
-                        vid_button = gr.Button("Analyze Video", variant="primary")
-
-                        video_examples = [
-                            ["media/input/compilation_video.mp4", 0.5]
-                        ]
-                        gr.Examples(
-                            examples=video_examples,
-                            inputs=[vid_input, vid_conf],
-                            label="Click an example below to test behavior detection:",
-                        )
-
-                    with gr.Column():
-                        vid_output = gr.Video(
-                            label="Processed Output Video (Preview & Download)"
-                        )
-                        vid_status_output = gr.Textbox(
-                            label="Processing Status & Progress",
-                            lines=2,
-                            interactive=False,
-                        )
-
-                vid_button.click(
-                    fn=process_video,
-                    inputs=[vid_input, vid_conf],
-                    outputs=[vid_output, vid_status_output],
-                )
+            build_image_tab()
+            build_video_tab()
 
     return demo
+
 
 if __name__ == "__main__":
     demo = create_ui()

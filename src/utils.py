@@ -2,8 +2,9 @@
 
 import logging
 import os
+from pathlib import Path
 import subprocess
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 import cv2
 import imageio_ffmpeg
 import numpy as np
@@ -12,21 +13,24 @@ logger = logging.getLogger(__name__)
 
 
 def get_output_path(
-    input_path: str, output_dir: str = "media/output", prefix: str = "result_"
+    input_path: Union[str, Path],
+    output_dir: Union[str, Path] = "media/output",
+    prefix: str = "result_",
 ) -> str:
     """Generates an output file path inside output_dir based on input_path.
 
     :param input_path: Path to the input file.
     :param output_dir: Directory where the output file should be saved.
     :param prefix: Prefix added to the original filename.
-    :return: Full path for the output file.
+    :return: Full path string for the output file.
     """
-    os.makedirs(output_dir, exist_ok=True)
-    filename = os.path.basename(input_path)
+    out_dir_path = Path(output_dir)
+    out_dir_path.mkdir(parents=True, exist_ok=True)
+    filename = Path(input_path).name
     if not filename:
         filename = "output.jpg"
     out_filename = f"{prefix}{filename}"
-    return os.path.join(output_dir, out_filename)
+    return str(out_dir_path / out_filename)
 
 
 def resize_frame(frame: np.ndarray, scale: float = 0.5) -> np.ndarray:
@@ -96,7 +100,7 @@ def format_detections_text(detections: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def reencode_to_h264(video_path: str) -> str:
+def reencode_to_h264(video_path: Union[str, Path]) -> str:
     """Re-encodes a video file to H.264 (yuv420p) format using FFmpeg binary from imageio-ffmpeg.
 
     This ensures full HTML5 video browser compatibility in Gradio web interfaces.
@@ -104,43 +108,43 @@ def reencode_to_h264(video_path: str) -> str:
     :param video_path: Path to the input video file.
     :return: Path to the re-encoded video file, or original video_path if conversion fails.
     """
-    if not os.path.exists(video_path):
-        logger.warning(f"Video path does not exist for re-encoding: {video_path}")
-        return video_path
+    v_path = Path(video_path)
+    if not v_path.exists():
+        logger.warning(f"Video path does not exist for re-encoding: {v_path}")
+        return str(v_path)
+
+    temp_out_path = v_path.parent / f"h264_{v_path.name}"
 
     try:
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-        dir_name, file_name = os.path.split(video_path)
-        temp_out_path = os.path.join(dir_name, f"h264_{file_name}")
-
         cmd = [
             ffmpeg_exe,
             "-y",
             "-i",
-            video_path,
+            str(v_path),
             "-vcodec",
             "libx264",
             "-pix_fmt",
             "yuv420p",
-            temp_out_path,
+            str(temp_out_path),
         ]
 
-        logger.info(f"Re-encoding video to H.264 using FFmpeg: {video_path}")
-        result = subprocess.run(
+        logger.info(f"Re-encoding video to H.264 using FFmpeg: {v_path}")
+        subprocess.run(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
         )
         logger.info("FFmpeg re-encoding completed successfully.")
 
-        os.replace(temp_out_path, video_path)
-        return video_path
+        temp_out_path.replace(v_path)
+        return str(v_path)
 
     except Exception as e:
         logger.error(
-            f"Failed to re-encode video '{video_path}' to H.264: {e}. Falling back to original video."
+            f"Failed to re-encode video '{v_path}' to H.264: {e}. Falling back to original video."
         )
-        if 'temp_out_path' in locals() and os.path.exists(temp_out_path):
+        if temp_out_path.exists():
             try:
-                os.remove(temp_out_path)
+                temp_out_path.unlink()
             except Exception:
                 pass
-        return video_path
+        return str(v_path)
