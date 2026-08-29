@@ -46,7 +46,7 @@ class AppConfig:
     CONF_MIN: float = 0.1
     CONF_MAX: float = 1.0
     CONF_STEP: float = 0.05
-    IMAGE_HEIGHT: int = 480
+    MEDIA_HEIGHT: int = 480
 
 
 def custom_unraisablehook(unraisable: Any) -> None:
@@ -155,7 +155,7 @@ def build_image_tab() -> None:
                     type="filepath",
                     label="Upload Image or Take Photo",
                     sources=["upload", "webcam"],
-                    height=AppConfig.IMAGE_HEIGHT,
+                    height=AppConfig.MEDIA_HEIGHT,
                 )
                 img_conf = gr.Slider(
                     minimum=AppConfig.CONF_MIN,
@@ -179,7 +179,9 @@ def build_image_tab() -> None:
 
             with gr.Column():
                 img_output = gr.Image(
-                    label="Annotated Result", height=AppConfig.IMAGE_HEIGHT
+                    label="Annotated Result",
+                    height=AppConfig.MEDIA_HEIGHT,
+                    format="jpeg"
                 )
                 det_text_output = gr.Textbox(
                     label="Detections (Class & Percentage)",
@@ -208,6 +210,7 @@ def build_video_tab() -> None:
                     value=default_vid_path,
                     label="Upload Video or Record",
                     sources=["upload", "webcam"],
+                    height=AppConfig.MEDIA_HEIGHT,
                 )
                 vid_conf = gr.Slider(
                     minimum=AppConfig.CONF_MIN,
@@ -227,7 +230,8 @@ def build_video_tab() -> None:
 
             with gr.Column():
                 vid_output = gr.Video(
-                    label="Processed Output Video (Preview & Download)"
+                    label="Processed Output Video (Preview & Download)",
+                    height=AppConfig.MEDIA_HEIGHT,
                 )
                 vid_status_output = gr.Textbox(
                     label="Processing Status & Progress",
@@ -244,10 +248,10 @@ def build_video_tab() -> None:
 
 def create_ui() -> gr.Blocks:
     """Builds and configures the Gradio Blocks web interface."""
-    with gr.Blocks(title="Pacific Parrotlet Behavior & Object Detection System") as demo:
+    with gr.Blocks(title="Pacific Parrotlet Behavior Detector") as demo:
         gr.Markdown(
             """
-            # 🦜 Pacific Parrotlet Behavior & Object Detection System
+            # 🦜 Pacific Parrotlet Behavior Detector
             A YOLOv8-powered deep learning model capable of detecting 13 distinct Pacific Parrotlet behaviors and actions (e.g., eating, drinking, napping, preening, stretching, observing).
 
             *Note: Behavior detection is fine-tuned specifically for Pacific Parrotlets; accuracy may decrease when applied to other bird species.*
